@@ -1,6 +1,8 @@
 from flask import *
 from flask_sqlalchemy import SQLAlchemy, sqlalchemy
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import func
+
 
 # from sqlalchemy import SQLAlchemy
 
@@ -45,6 +47,7 @@ class Internship(db.Model):
       }
 
 
+
 class Task(db.Model):
   __tablename__ = 'task_table'
 
@@ -81,7 +84,7 @@ test_json2 = {
 test_json3 = {
     "req_num": 3,
     "user_id": 2,
-    "internship_id": 1,
+    "internship_id": 12,
     "memo": "IT系、結構よさげ",
     "priority": 1,
     "tasks": [
@@ -194,24 +197,33 @@ def update_internship(json):
     my_internship = db.session.query(Internship).filter(Internship.user_id==user_id, Internship.id==internship_id).one()    
     app.logger.info('Old')
     app.logger.info('my_internship: %s', my_internship)
+    app.logger.info('priority: %s', priority)
+    app.logger.info('memo: %s', memo)
+    app.logger.info('my_internship.priority: %s', my_internship.priority)
+    app.logger.info('my_internship.memo: %s', my_internship.memo)
+    #v_3 ここまで実行されてる
 
     # app.logger.info('my_internship.memo: %s', my_internship.memo)
     # app.logger.info('my_internship.priority: %s', my_internship.priority)
 
     #DBの書き換え
-    my_internship.memo = memo
     my_internship.priority = priority
-    # task_list = update_tasks(user_id, internship_id, tasks)
-    
-    try:
-        task_list = update_tasks(user_id, internship_id, tasks)
-    except sqlalchemy.orm.exc.UnmappedInstanceError as e:
-        # error = str(e.__dict__['orig'])
-        # app.logger.info('error: %s', error)
-        app.logger.info('e: %s', e)      
-
-    app.logger.info('my_internship.memo: %s', my_internship.memo)
+    my_internship.memo = memo
     app.logger.info('my_internship.priority: %s', my_internship.priority)
+    app.logger.info('my_internship.memo: %s', my_internship.memo)
+    update_tasks(user_id, internship_id, tasks)
+    
+    # try:
+    #     update_tasks(user_id, internship_id, tasks)
+    # except sqlalchemy.orm.exc.DetachedInstanceError as e:
+    #     # error = str(e.__dict__['orig'])
+    #     # app.logger.info('error: %s', error)
+    #     app.logger.info('e: %s', e)      
+    #     app.logger.info('最後のエラー！！')      
+
+    app.logger.info('========ここに戻るよ〜========')
+    # app.logger.info('my_internship.memo: %s', my_internship.memo)
+    # app.logger.info('my_internship.priority: %s', my_internship.priority)
 
     app.logger.info('New')
     app.logger.info('my_internship: %s', my_internship)
@@ -229,6 +241,7 @@ def update_internship(json):
         "status": check_status(),
         "internship_id": internship_id
     }   
+    app.logger.info('========全てのエラーが解決した〜========')
     return new_json
 
 def create_internship_id(user_id, internship_id):
@@ -242,21 +255,36 @@ def create_internship_id(user_id, internship_id):
     return internship_id
 
 def update_tasks(user_id, internship_id, tasks):
+    app.logger.info('========ここから関数だよ〜========')
     app.logger.info('user_id: %s', user_id)
     app.logger.info('internship_id: %s', internship_id)
     app.logger.info('tasks: %s', tasks)
 
-    tasks_db = db.session.query(Task).filter(Task.internship_id==internship_id).all()
-    if tasks_db is None:
+    tasks_db = db.session.query(Task).filter(Task.internship_id==internship_id)
+    hoge = db.session.query(Task).filter(Task.internship_id==internship_id).all()
+    app.logger.info('hoge: %s', hoge)
+    app.logger.info('type(hoge): %s',type(hoge))
+    app.logger.info('db.session.query(func.count(Task.id)): %s', db.session.query(func.count(Task.id)).first()[0])
+    app.logger.info('type(db.session.query(func.count(Task.id)).first()): %s', type(db.session.query(func.count(Task.id)).first()))
+
+    # if tasks_db.all() is None:
+    if db.session.query(func.count(Task.id)).first()[0] == 0:
         app.logger.info('tasks_db_None: %s', tasks_db)
     else:
         app.logger.info('tasks_db_Exist: %s', tasks_db)
-        #TODO
-        try:
-            db.session.delete(tasks_db) 
-            # ここエラーでる
-        except :
+        app.logger.info('type(tasks_db): %s', type(tasks_db))
+        app.logger.info('type(tasks_db.all(): %s', type(tasks_db.all()))
+        for to_delete in tasks_db.all():
+            app.logger.info('to_delete: %s', to_delete)
+            db.session.delete(to_delete) 
             db.session.commit()
+        app.logger.info('削除成功した')
+        #ここまでOK
+        # try:
+            # Task.query().delete()
+            # ここエラーでる
+        # except SQLAlchemyError as e:
+            # app.logger.info(e) 
         #ここまでOK
 
     json_task_id_list = [task["task_id"] for task in tasks]
@@ -290,11 +318,16 @@ def update_tasks(user_id, internship_id, tasks):
         db.session.add(new_task)
         app.logger.info('new_task: %s', new_task)
         #ここからか！
-        try:
-            db.session.commit()
-        except:
-            db.session.close()
-    return [task.to_dict for task in Task.query().filter(Task.internship_id==internship_id).all()]
+        db.session.commit()
+        db.session.close()
+        app.logger.info('更新に成功した: %s')
+
+        #ないときの分岐も欲しい
+        # task_to_dist = [task.to_dict for task in db.session.query(Task).filter(Task.internship_id==internship_id).all()]
+        # app.logger.info('task_to_dist: %s', task_to_dist)
+        app.logger.info('========ここで関数終わり〜========')
+    return 
+
 
 def delete_internship(json):
     user_id = json["user_id"]
