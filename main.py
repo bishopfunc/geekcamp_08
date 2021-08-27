@@ -79,24 +79,28 @@ test_json1 = {
 test_json2 = {
     "req_num": 2,
     "user_id": 2,
-    "internship_id": 0
+    "internship_id": 12
 }
 test_json3 = {
     "req_num": 3,
-    "user_id": 2,
-    "internship_id": 12,
-    "memo": "IT系、結構よさげ",
+    "user_id": 8,
+    "internship_id": -1,
+    "memo": "IT系大っ嫌いだ",
     "priority": 1,
     "tasks": [
-        {"task_id": 3, "task_name": "応募", "start_date": "2021/08/27 00:00", "end_date": "2021/08/27 00:00", "is_complete": False},
-        {"task_id": 4, "task_name": "面接本番", "start_date": "2021/08/27 00:00", "end_date": "2021/08/28 00:00", "is_complete": True}
+        {"task_id": 12, "task_name": "応募", "start_date": "2021/08/27 00:00", "end_date": "2021/08/27 00:00", "is_complete": False},
+        {"task_id": 13, "task_name": "1次面接", "start_date": "2021/08/27 00:00", "end_date": "2021/08/28 00:00", "is_complete": True},
+        {"task_id": 14, "task_name": "通信仕様書", "start_date": "2021/08/27 00:00", "end_date": "2021/08/28 00:00", "is_complete": True},
+        {"task_id": 15, "task_name": "2次面接", "start_date": "2021/08/27 00:00", "end_date": "2021/08/28 00:00", "is_complete": True},
+        {"task_id": 16, "task_name": "内定", "start_date": "2021/08/27 00:00", "end_date": "2021/08/28 00:00", "is_complete": True},
+        {"task_id": 17, "task_name": "NNT", "start_date": "2021/08/27 00:00", "end_date": "2021/08/28 00:00", "is_complete": True}
     ]
 }
 
 test_json4 = {
     "req_num": 4,
-    "user_id": 0,
-    "internship_id": 0
+    "user_id": 3,
+    "internship_id": 26
 }
 
 @app.route('/test')
@@ -160,7 +164,7 @@ def create_user(json):
 
 def internship_id_list(json):
     user_id = json["user_id"]
-    internship_id_list = [internship.id for internship in Internship.query().filter(Internship.user_id==user_id).all()]
+    internship_id_list = [internship.id for internship in db.session.query(Internship).filter(Internship.user_id==user_id).all()]
     new_json = {
         "status": check_status(),
         "internship_id": internship_id_list
@@ -170,8 +174,9 @@ def internship_id_list(json):
 def internship_detail(json):
     user_id = json["user_id"]
     internship_id = json["internship_id"]
-    my_internship = db.session.query(Internship).filter(Internship.user_id==user_id, Internship.id==internship_id)
-    task_detail_list = [task.to_dict for task in Task.query().filter(Internship.user_id==user_id, Internship.id==internship_id)] #TODO
+    task_db = db.session.query(Task).filter(Task.internship_id==internship_id).all()
+    my_internship = db.session.query(Internship).filter(Internship.user_id==user_id, Internship.id==internship_id).first()
+    task_detail_list = [Task.to_dict(task) for task in task_db] 
     new_json = {
         "status": check_status(),
         "memo": my_internship.memo,
@@ -293,7 +298,7 @@ def update_tasks(user_id, internship_id, tasks):
 
     # for i in range(json_task_id_list[-1] + 1):
     for num, id in enumerate(json_task_id_list):
-        new_task = Task(internship_id=internship_id,id=id) #この書き方は大丈夫？
+        new_task = Task(id=id, internship_id=internship_id,) #この書き方は大丈夫？
     #   new_task = Task()
         app.logger.info('new_task: %s', new_task)
         app.logger.info('ここから心配')
@@ -332,8 +337,10 @@ def update_tasks(user_id, internship_id, tasks):
 def delete_internship(json):
     user_id = json["user_id"]
     internship_id = json["internship_id"] 
-    my_internship = db.session.query(Internship).filter(Internship.user_id==user_id, Internship.id==internship_id) 
-    db.session.delete(my_internship)  
+    my_internship = db.session.query(Internship).filter(Internship.user_id==user_id, Internship.id==internship_id).first()
+    db.session.delete(my_internship)
+    db.session.commit()
+    db.session.close()      
     
     new_json = {
         "status": check_status(),
